@@ -1,0 +1,11 @@
+{
+  "name": "repbil",
+  "version": "1.0.0",
+  "main": "RepBilServer.js",
+  "author": "Chrisitian M. Hammervig",
+  "license": "MIT",
+  "dependencies": {
+    "knex": "^3.2.9",
+    "mysql2": "^3.22.1"
+  }
+}
