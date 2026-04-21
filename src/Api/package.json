@@ -5,7 +5,20 @@
   "author": "Chrisitian M. Hammervig",
   "license": "MIT",
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "bookshelf": "^1.2.0",
+    "bookshelf-virtuals-plugin": "^1.0.0",
+    "cors": "^2.8.6",
+    "crypto": "^1.0.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "knex": "^3.2.9",
-    "mysql2": "^3.22.1"
+    "multer": "^2.1.1",
+    "mysql2": "^3.22.1",
+    "nodemailer": "^8.0.5",
+    "nodemailer-juice": "^1.0.1",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1"
   }
 }

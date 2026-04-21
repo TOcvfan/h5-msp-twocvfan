@@ -1,23 +1,24 @@
-// Update with your config settings.
-
-/**
- * @type { Object.<string, import("knex").Knex.Config> }
- */
 module.exports = {
 
   development: {
-    client: 'sqlite3',
+    client: 'mysql2',
     connection: {
-      filename: './dev.sqlite3'
+      host: '127.0.0.1',
+      user: 'carserver',
+      port: 3306,
+      password: 'Car_dataServer2026!',
+      database: 'carserverdb',
     }
   },
 
   staging: {
-    client: 'postgresql',
+    client: 'mysql2',
     connection: {
-      database: 'my_db',
-      user:     'username',
-      password: 'password'
+      host: '127.0.0.1',
+      port: 3306,
+      user: 'carserver',
+      password: 'Car_dataServer2026!',
+      database: 'carserverdb',
     },
     pool: {
       min: 2,
@@ -29,11 +30,13 @@ module.exports = {
   },
 
   production: {
-    client: 'postgresql',
+    client: 'mysql2',
     connection: {
-      database: 'my_db',
-      user:     'username',
-      password: 'password'
+      host: '127.0.0.1',
+      port: 3306,
+      database: 'carserverdb',
+      user: 'carserver',
+      password: 'Car_dataServer2026!'
     },
     pool: {
       min: 2,
