@@ -1,14 +1,15 @@
-const fs = require('node:fs');
-const response = (reply, status, res) => res.status(status).send(reply);
-let payload = {};
+import { cookieOptions } from '../middleware/cookieoptions.js';
+import { randomUUID } from 'crypto';
+const response = (reply, status, res) => res.status(status).json(reply);
 
 const handleRegister = async (req, res, User, jwt, dotenv, knexDb, seedrandom) => {
     dotenv.config();
-    let user_id
+    let user_id = randomUUID();
     const profile = 'profile';
     const table = 'user';
     const { email, password, name, username } = req.body;
-    user_id = seedrandom(navn + username + email);
+    let payload = {};
+    //user_id = seedrandom(name + username + email);
 
     const newUser = async () => {
         const user = new User({
@@ -24,10 +25,6 @@ const handleRegister = async (req, res, User, jwt, dotenv, knexDb, seedrandom) =
             }
             knexDb.insert(newUser).into(profile)
                 .then(() => {
-                    const imagePath = `./images/${user_id}`
-                    if (!fs.existsSync(imagePath)) {
-                        fs.mkdirSync(imagePath, { recursive: true });
-                    }
                     response(payload, 201, res)
                 }).catch(e => response({ message: e + '1', error: true }, 400, res))
         }).catch(e => response({ message: e + '2', error: true }, 400, res))
@@ -70,81 +67,94 @@ const handleSignin = (req, res, knexDb, bcrypt, jwt, dotenv) => {
         return response({ message: 'password  user', error: true }, 400, res);
     }
     let accesstoken
+    let payload = {};
     let refreshtoken
     //
     let counter;
     const table = 'user'
     const profile = 'profile'
+    try {
+        const result = await knexDb(table)
+            .select('user_id', 'userpassword', 'counter')
+            .where('email', user)
+            .orWhere('username', user);
 
-    const loadUser = () => {
-        return knexDb(table).select(`counter`, 'user_id')
-            .where(`email`, user)
-            .orWhere(`username`, user)
-            .then(user => {
-                user_id = user[0].user_id;
-                counter = user[0].counter + 1;
+        if (!result.length) {
+            return response({ error: true, message: 'user not found' }, 404, res);
+        }
 
-                refreshtoken = jwt.sign({ user_id, counter }, process.env.SECRET_OR_KEY_REFRESH, {
-                    expiresIn: 7 * 24 * 3600
-                });
-                accesstoken = jwt.sign({ user_id }, process.env.SECRET_OR_KEY_ACCESS, {
-                    expiresIn: 1,
-                });
-                payload = { auth: true, refreshtoken, accesstoken };
-            }).catch(err => {
-                console.log(err)
-                response({ message: err, error: true }, 400, res)
-            }).then(() => {
-                knexDb(table)
-                    .where({ user_id })
-                    .increment('counter', 1).then(() =>
-                        response(payload, 200, res))
-            })
-            .catch(err => {
-                //console.log(err)
-                response({ message: 'kunne ikke hente user ' + err, error: true }, 400, res)
-            })
+        const dbUser = result[0];
+        const valid = await bcrypt.compare(password, dbUser.userpassword);
+        if (!valid) {
+            return response({ error: true, message: 'wrong password' }, 401, res);
+        }
+
+        const counter = dbUser.counter + 1;
+
+        const accesstoken = jwt.sign(
+            { user_id: dbUser.user_id },
+            process.env.SECRET_OR_KEY_ACCESS,
+            { expiresIn: '15m' }
+        );
+
+        const refreshtoken = jwt.sign(
+            { user_id: dbUser.user_id, counter },
+            process.env.SECRET_OR_KEY_REFRESH,
+            { expiresIn: '7d' }
+        );
+
+        await knexDb('user')
+            .where({ user_id: dbUser.user_id })
+            .increment('counter', 1);
+
+        res.cookie('accesstoken', accesstoken, cookieOptions);
+        res.cookie('refreshtoken', refreshtoken, cookieOptions);
+
+        return response({
+            auth: true,
+            accesstoken,
+            refreshtoken
+        }, 200, res);
+    } catch (err) {
+        console.error(err);
+        return response({ error: true, message: 'server error' }, 500, res);
     }
 
-    const sammenlignPassword = (pass) => {
-        bcrypt.compareSync(password, pass) === true ?
-            loadUser() : response({ name: 'password', message: 'Forkert kode', error: true }, 409, res)
-    }
-
-    knexDb.select('userpassword').from(table)
-        .where('email', '=', user)
-        .orWhere('username', user)
-        .then(data => {
-            data[0] === undefined ? response({ name: 'user', message: user, error: true }, 409, res) : sammenlignPassword(data[0].userpassword)
-        })
-        .catch(err => response({ message: err, error: true }, 400, res));
 }
 
 const handleGetUser = (req, res, knexDb) => {
+    const id = req.params.id;
+    if (!id) {
+        return response({ message: 'id missing', error: true }, 400, res);
+    }
+    let user_id;
     const table = 'user'
     const profile = 'profile'
+    let payload = {};
     let name;
 
     knexDb(table).leftOuterJoin(profile, `${table}.user_id`, `${profile}.user_id`)
         .select(`${profile}.name`, `${table}.email`, `${table}.username`, `${profile}.user_id`)
-        .where(`${table}.email`, user)
-        .orWhere(`${table}.username`, user)
+        .where(`${table}.user_id`, id)
         .then(user => {
+            if (!user || user.length === 0) {
+                return response({ message: 'User not found', error: true }, 404, res);
+            }
             user_id = user[0].user_id;
             name = user[0].name;
-            const user = user[0].username;
+            const username = user[0].username;
             const email = user[0].email;
 
-            payload = { auth: true, name, email, user, id: user_id };
+            payload = { auth: true, name, email, username, id: user_id };
             response(payload, 200, res)
         }).catch(err => {
             console.log(err)
-            response({ message: err, error: true }, 400, res)
+            response({ message: 'Database error', error: true }, 500, res)
         })
 
 }
 
 
-module.exports = {
+export default {
     handleRegister, handleSignin, handleGetUser
 };

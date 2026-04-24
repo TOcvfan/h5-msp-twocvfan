@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import jwt from 'jsonwebtoken';
 const response = (reply, status, res) => res.status(status).send(reply);
-export const headersAuth = (rolle, id) => {
+export const headersAuth = (role, id) => {
     return (req, res, next) => {
         const token = req.cookies.accesstoken || req.header('Authorization').replace('Bearer ', '');
         if (!token) {
@@ -15,13 +15,13 @@ export const headersAuth = (rolle, id) => {
                 return response({ message: 'nix', error: true }, 401, res);
             }
 
-            if (rolle) {
+            if (role) {
                 if (decodedUser.role !== 'ADMIN') {
-                    if (rolle === 'BRUGER') {
-                        if (decodedUser.role === rolle) {
+                    if (role === 'BRUGER') {
+                        if (decodedUser.role === role) {
                             response({ message: 'nix', error: true }, 401, res);
                         }
-                    } else if (decodedUser.role !== rolle) {
+                    } else if (decodedUser.role !== role) {
                         return response({ message: 'nix', error: true }, 401, res);
                     }
                 }

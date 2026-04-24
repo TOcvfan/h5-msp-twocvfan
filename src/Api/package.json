@@ -8,6 +8,7 @@
     "bcrypt": "^6.0.0",
     "bookshelf": "^1.2.0",
     "bookshelf-virtuals-plugin": "^1.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "crypto": "^1.0.1",
     "dotenv": "^17.4.2",
@@ -19,6 +20,7 @@
     "nodemailer": "^8.0.5",
     "nodemailer-juice": "^1.0.1",
     "passport": "^0.7.0",
-    "passport-jwt": "^4.0.1"
+    "passport-jwt": "^4.0.1",
+    "seedrandom": "^3.0.5"
   }
 }

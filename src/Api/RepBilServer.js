@@ -22,7 +22,7 @@ const inLineCss = require('nodemailer-juice');
 const seedrandom = require('./middleware/idGenerator');
 const passport = require('passport');
 const passportJwt = require('passport-jwt');
-const { handleRegister, handleSignin, handleGetUser } = require('./controllers/user');
+const { handleRegister, handleSignin, handleGetUser } = require('./controllers/user').default;
 const JwtStrategy = passportJwt.Strategy;
 const ExtractJwt = passportJwt.ExtractJwt;
 const knex = require('knex');
@@ -59,8 +59,8 @@ app.get(serverPath + '/', (_req, res) => {
 });
 
 const User = db.Model.extend({
-    tableName: 'bruger',
-    idAttribute: 'bruger_id',
+    tableName: 'user',
+    idAttribute: 'user_id',
     hasSecurePassword: true
 });
 
@@ -70,7 +70,7 @@ const opts = {
 };
 
 const strategy = new JwtStrategy(opts, (payload, next) => {
-    User.forge({ bruger_id: payload.bruger_id }).fetch().then(res => {
+    User.forge({ user_id: payload.user_id }).fetch().then(res => {
         next(null, res);
     });
 });
@@ -89,7 +89,7 @@ app.post('/login', async (req, res) => { handleSignin(req, res, knexDb, bcrypt, 
 
 app.post('/newuser', async (req, res) => { handleRegister(req, res, User, jwt, dotenv, knexDb, seedrandom) });
 
-app.get('/getuser', async (req, res) => { handleGetUser(req, res, knexDb) });
+app.get('/getuser/:id', headersAuth, async (req, res) => { handleGetUser(req, res, knexDb) });
 
 app.listen(PORT, () => {
     console.log(`App is running on ${PORT}`)
