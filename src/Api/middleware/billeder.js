@@ -117,7 +117,7 @@ function checkFileType(file, cb) {
     }
 }
 
-export const upload = multer({
+export default multer({
     storage: storage,
     fileFilter: function (_req, file, cb) {
         checkFileType(file, cb);
