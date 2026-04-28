@@ -1,12 +1,12 @@
-const dotenv = require('dotenv');
-dotenv.config();
-const express = require('express');
+import dotenv, { config } from 'dotenv';
+config();
+import express from 'express';
 
 const app = express();
-const cors = require('cors');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto')
+import cors from 'cors';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 const dbUsername = process.env.DB_USER;
 const dbPassword = process.env.DB_PASS;
 if (!dbUsername) {
@@ -17,15 +17,14 @@ if (!dbPassword) {
     throw new Error('DB_PASSWORD environment variables must be set');
 }
 
-const nodemailer = require('nodemailer');
-const inLineCss = require('nodemailer-juice');
-const seedrandom = require('./middleware/idGenerator');
-const passport = require('passport');
-const passportJwt = require('passport-jwt');
-const { handleRegister, handleSignin, handleGetUser } = require('./controllers/user').default;
-const JwtStrategy = passportJwt.Strategy;
-const ExtractJwt = passportJwt.ExtractJwt;
-const knex = require('knex');
+import nodemailer from 'nodemailer';
+import inLineCss from 'nodemailer-juice';
+import { Strategy, ExtractJwt as _ExtractJwt } from 'passport-jwt';
+import { handleRegister, handleSignin, handleGetUser, handleLogout } from './controllers/user.js';
+const JwtStrategy = Strategy;
+import passport from 'passport';
+const ExtractJwt = _ExtractJwt;
+import knex from 'knex';
 const knexDb = knex({
     client: 'mysql2',
     connection: {
@@ -39,10 +38,11 @@ const knexDb = knex({
 const PORT = 3004;
 const serverPath = '/bildata'
 
-const bookshelf = require('bookshelf');
-const securePassword = require('./middleware/bookshelf-secure-password');
-const { headersAuth, verifyRefresh } = require('./middleware/auth');
-const upload = require('./middleware/billeder');
+import bookshelf from 'bookshelf';
+import securePassword from './middleware/bookshelf-secure-password.js';
+import { headersAuth } from './middleware/auth.js';
+import { verifyCsrf, generateCsrfToken } from './middleware/cookieoptions.js';
+import upload from './middleware/billeder.js';
 const db = bookshelf(knexDb);
 db.plugin(securePassword);
 const corsOptions = {
@@ -50,12 +50,15 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-const path = require('path');
+import path, { join } from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-app.use(`${serverPath}/billeder`, express.static(path.join(__dirname, 'billeder')));
+app.use(`${serverPath}/billeder`, express.static(join(__dirname, 'billeder')));
 app.use(express.static('public'));
 app.get(serverPath + '/', (_req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(join(__dirname, 'public', 'index.html'));
 });
 
 const User = db.Model.extend({
@@ -66,7 +69,7 @@ const User = db.Model.extend({
 
 const opts = {
     jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-    secretOrKey: process.env.SECRET_OR_KEY_ACCESS
+    secretOrKey: process.env.ACCESS_SECRET
 };
 
 const strategy = new JwtStrategy(opts, (payload, next) => {
@@ -85,11 +88,15 @@ app.use('/robots.txt', (_req, res, _next) => {
     res.send("User-agent: *\nAllow: /");
 });
 
-app.post('/login', async (req, res) => { handleSignin(req, res, knexDb, bcrypt, jwt, dotenv) });
+app.post('/login', generateCsrfToken, async (req, res) => { handleSignin(req, res, knexDb, bcrypt, jwt, dotenv) });
 
-app.post('/newuser', async (req, res) => { handleRegister(req, res, User, jwt, dotenv, knexDb, seedrandom) });
+app.post('/refresh', verifyCsrf, async (req, res) => { refreshToken(req, res, knexDb, jwt) });
 
-app.get('/getuser/:id', headersAuth, async (req, res) => { handleGetUser(req, res, knexDb) });
+app.post('/newuser', async (req, res) => { handleRegister(req, res, User, jwt, dotenv, knexDb) });
+
+app.get('/me', headersAuth(), async (req, res) => { handleGetUser(req, res, knexDb) });
+
+app.post('/logout', verifyCsrf, (req, res) => { handleLogout(req, res) });
 
 app.listen(PORT, () => {
     console.log(`App is running on ${PORT}`)
