@@ -2,7 +2,7 @@ import { cookieOptions } from '../middleware/cookieoptions.js';
 import { randomUUID } from 'crypto';
 const response = (reply, status, res) => res.status(status).json(reply);
 
-const handleRegister = async (req, res, User, jwt, dotenv, knexDb, seedrandom) => {
+export const handleRegister = async (req, res, User, jwt, dotenv, knexDb) => {
     dotenv.config();
     let user_id = randomUUID();
     const profile = 'profile';
@@ -14,7 +14,6 @@ const handleRegister = async (req, res, User, jwt, dotenv, knexDb, seedrandom) =
     const newUser = async () => {
         const user = new User({
             user_id,
-            username,
             email,
             password
         });
@@ -31,9 +30,8 @@ const handleRegister = async (req, res, User, jwt, dotenv, knexDb, seedrandom) =
     }
 
     const m = 'email';
-    const b = 'username';
 
-    knexDb(table).where(m, email).orWhere(b, username).then((user) => {
+    knexDb(table).where(m, email).then((user) => {
         if (user.length != 0) {
             return response({ message: 'already exists', error: true }, 409, res)
         } else {
@@ -59,12 +57,12 @@ const handleRegister = async (req, res, User, jwt, dotenv, knexDb, seedrandom) =
     }, 409, res))
 }
 
-const handleSignin = (req, res, knexDb, bcrypt, jwt, dotenv) => {
+export const handleSignin = async (req, res, knexDb, bcrypt, jwt, dotenv) => {
     dotenv.config();
     let user_id
-    const { user, password } = req.body;
-    if (!user || !password) {
-        return response({ message: 'password  user', error: true }, 400, res);
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return response({ message: 'password and email are required', error: true }, 400, res);
     }
     let accesstoken
     let payload = {};
@@ -74,10 +72,9 @@ const handleSignin = (req, res, knexDb, bcrypt, jwt, dotenv) => {
     const table = 'user'
     const profile = 'profile'
     try {
-        const result = await knexDb(table)
+        const result = await knexDb(table) // --> await giver fejl
             .select('user_id', 'userpassword', 'counter')
-            .where('email', user)
-            .orWhere('username', user);
+            .where('email', email);
 
         if (!result.length) {
             return response({ error: true, message: 'user not found' }, 404, res);
@@ -93,13 +90,13 @@ const handleSignin = (req, res, knexDb, bcrypt, jwt, dotenv) => {
 
         const accesstoken = jwt.sign(
             { user_id: dbUser.user_id },
-            process.env.SECRET_OR_KEY_ACCESS,
-            { expiresIn: '15m' }
+            process.env.ACCESS_SECRET,
+            { expiresIn: 3600 }
         );
 
         const refreshtoken = jwt.sign(
             { user_id: dbUser.user_id, counter },
-            process.env.SECRET_OR_KEY_REFRESH,
+            process.env.REFRESH_SECRET,
             { expiresIn: '7d' }
         );
 
@@ -107,13 +104,11 @@ const handleSignin = (req, res, knexDb, bcrypt, jwt, dotenv) => {
             .where({ user_id: dbUser.user_id })
             .increment('counter', 1);
 
-        res.cookie('accesstoken', accesstoken, cookieOptions);
-        res.cookie('refreshtoken', refreshtoken, cookieOptions);
+        res.cookie('accessToken', accesstoken, cookieOptions);
+        res.cookie('refreshToken', refreshtoken, cookieOptions);
 
         return response({
-            auth: true,
-            accesstoken,
-            refreshtoken
+            auth: true
         }, 200, res);
     } catch (err) {
         console.error(err);
@@ -122,39 +117,46 @@ const handleSignin = (req, res, knexDb, bcrypt, jwt, dotenv) => {
 
 }
 
-const handleGetUser = (req, res, knexDb) => {
-    const id = req.params.id;
-    if (!id) {
-        return response({ message: 'id missing', error: true }, 400, res);
+export const handleGetUser = async (req, res, knexDb) => {
+    const userId = req.user.id; // 🔥 fra token
+
+    try {
+        const user = await knexDb('user')
+            .leftOuterJoin('profile', 'user.user_id', 'profile.user_id')
+            .select(
+                'profile.name',
+                'user.email',
+                'user.username',
+                'profile.user_id'
+            )
+            .where('user.user_id', userId)
+            .first();
+
+        if (!user) {
+            return res.status(404).json({
+                message: 'User not found',
+                error: true,
+            });
+        }
+
+        return res.json({
+            auth: true,
+            name: user.name,
+            email: user.email,
+            id: user.user_id,
+        });
+    } catch (err) {
+        console.error(err);
+
+        return res.status(500).json({
+            message: 'Database error',
+            error: true,
+        });
     }
-    let user_id;
-    const table = 'user'
-    const profile = 'profile'
-    let payload = {};
-    let name;
-
-    knexDb(table).leftOuterJoin(profile, `${table}.user_id`, `${profile}.user_id`)
-        .select(`${profile}.name`, `${table}.email`, `${table}.username`, `${profile}.user_id`)
-        .where(`${table}.user_id`, id)
-        .then(user => {
-            if (!user || user.length === 0) {
-                return response({ message: 'User not found', error: true }, 404, res);
-            }
-            user_id = user[0].user_id;
-            name = user[0].name;
-            const username = user[0].username;
-            const email = user[0].email;
-
-            payload = { auth: true, name, email, username, id: user_id };
-            response(payload, 200, res)
-        }).catch(err => {
-            console.log(err)
-            response({ message: 'Database error', error: true }, 500, res)
-        })
-
-}
-
-
-export default {
-    handleRegister, handleSignin, handleGetUser
 };
+
+export const handleLogout = (req, res) => {
+    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/' });
+    return response({ auth: false, message: 'logged out' }, 200, res);
+}
